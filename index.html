@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CA Final Pro Tracker | The Game of Discipline</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* --- 1. CORE VARIABLES & RESET --- */
+        :root {
+            --bg-color: #F0F4F8;
+            --text-dark: #0F172A;
+            --text-light: #64748B;
+            --primary: #2563EB;
+            --primary-glow: rgba(37, 99, 235, 0.5);
+            --accent: #F59E0B;
+            --mem-bg: #0f172a;
+            --mem-card: #1e293b;
+            --mem-accent: #00f0ff;
+            --radius: 24px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            touch-action: pan-x pan-y; /* Prevent zooming/accidental gestures */
+        }
+
+        /* --- 2. THE GAME WORLD (Horizontal Scroll) --- */
+        .game-world {
+            display: flex;
+            flex-direction: row;
+            overflow-x: hidden; /* Hide scrollbar, use buttons/js */
+            height: 100%;
+            width: 100%;
+            scroll-behavior: smooth;
+        }
+
+        .level {
+            flex: 0 0 100vw;
+            height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            opacity: 0.3;
+            transform: scale(0.95);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            will-change: transform, opacity; /* Performance fix for lag */
+            overflow-y: auto;
+        }
+
+        .level.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Deep Quantum Theme for Memory Game */
+        .level.dark-mode {
+            background: linear-gradient(135deg, #020617 0%, #0f172a 100%);
+            color: white;
+        }
+        .level.dark-mode h2, .level.dark-mode p { color: white; }
+        .level.dark-mode .text-muted { color: #94a3b8; }
+
+        .level-content {
+            max-width: 1100px;
+            width: 100%;
+            z-index: 10;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-bottom: 80px; /* Space for nav buttons */
+        }
+
+        /* --- 3. HUD & NAVIGATION ARROWS --- */
+        .hud {
+            position: fixed; top: 0; left: 0; width: 100%;
+            padding: 1rem 1.5rem;
+            z-index: 100;
+            display: flex; justify-content: space-between; align-items: center;
+            pointer-events: none;
+        }
+        .hud-left, .hud-right { pointer-events: auto; }
+
+        /* Navigation Arrows */
+        .nav-btn {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0,0,0,0.1);
+            color: var(--primary);
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            z-index: 999;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .nav-btn:hover { transform: translateY(-50%) scale(1.1); background: white; }
+        .nav-btn:active { transform: translateY(-50%) scale(0.95); }
+        .nav-prev { left: 20px; display: none; } /* Hidden on first slide */
+        .nav-next { right: 20px; }
+
+        /* Icon Badge */
+        .app-icon-badge {
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(255,255,255,0.95);
+            padding: 6px 14px 6px 6px;
+            border-radius: 50px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            text-decoration: none; color: var(--text-dark);
+        }
+        .app-logo-small {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, #2563EB, #1E40AF);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 800; font-size: 1rem;
+        }
+
+        /* Progress Bar */
+        .progress-bar-container {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            width: 150px; height: 5px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+            z-index: 100;
+        }
+        .progress-fill {
+            height: 100%; background: var(--primary);
+            width: 0%; border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+
+        /* --- 4. TYPOGRAPHY & BUTTONS --- */
+        h1 {
+            font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 1rem;
+            background: linear-gradient(to right, #1E293B, #334155);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        h2 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-dark); }
+        p { font-size: 1.1rem; color: var(--text-light); max-width: 600px; margin-bottom: 2rem; line-height: 1.5; }
+
+        .btn {
+            padding: 0.9rem 2rem; border-radius: 50px;
+            font-weight: 600; font-size: 1rem; border: none; cursor: pointer;
+            transition: all 0.3s ease; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 8px;
+            touch-action: manipulation; /* Improves touch response */
+        }
+        .btn-primary {
+            background: var(--primary); color: white;
+            box-shadow: 0 10px 20px -5px var(--primary-glow);
+        }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 15px 30px -5px var(--primary-glow); }
+
+        .card {
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(12px);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+
+        /* --- 5. MEMORY GAME --- */
+        .memory-wrapper {
+            background: rgba(15, 23, 42, 0.6);
+            padding: 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            box-shadow: 0 0 30px rgba(0,0,0,0.2);
+            max-width: 400px; width: 100%;
+            position: relative;
+        }
+        
+        .game-rules {
+            font-size: 0.85rem; color: #94a3b8; margin-top: 15px;
+            background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px;
+        }
+
+        .mem-stats {
+            display: flex; justify-content: space-between;
+            margin-bottom: 10px; font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem; color: #94a3b8;
+        }
+        .mem-stat-val { color: var(--mem-accent); font-weight: bold; }
+
+        .memory-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 8px; perspective: 1000px;
+        }
+
+        .memory-card {
+            background-color: transparent; aspect-ratio: 1;
+            cursor: pointer; position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.4s; /* Faster flip */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .memory-card.flip { transform: rotateY(180deg); }
+        .memory-card.matched { opacity: 0.5; pointer-events: none; }
+
+        .front-face, .back-face {
+            width: 100%; height: 100%; position: absolute;
+            border-radius: 10px; display: flex; justify-content: center; align-items: center;
+            backface-visibility: hidden; font-size: 1.8rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .front-face { background: #1e293b; color: white; transform: rotateY(180deg); border: 1px solid var(--mem-accent); }
+        .back-face { background: linear-gradient(135deg, #334155, #1e293b); border: 1px solid #475569; color: rgba(255,255,255,0.2); font-size: 1.2rem; }
+
+        .mem-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.98);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 20px; z-index: 20; display: none;
+        }
+
+        /* --- 6. DINO GAME --- */
+        #mini-game-container {
+            width: 100%; max-width: 500px; height: 200px;
+            background: #fff; border-radius: 16px;
+            position: relative; overflow: hidden;
+            border: 2px solid #e2e8f0; margin: 0 auto;
+            touch-action: none;
+        }
+        .dino {
+            width: 35px; height: 35px; background: var(--primary);
+            position: absolute; bottom: 0; left: 40px;
+            border-radius: 6px; display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 18px;
+        }
+        .obstacle {
+            width: 25px; height: 35px;
+            position: absolute; bottom: 0; left: 100%; /* Start outside */
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+        }
+        .jump-anim { animation: jump 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes jump {
+            0% { bottom: 0; } 50% { bottom: 90px; } 100% { bottom: 0; }
+        }
+
+        /* --- 7. MOBILE RESPONSIVENESS --- */
+        @media (max-width: 600px) {
+            h1 { font-size: 2.5rem; }
+            h2 { font-size: 1.5rem; }
+            .btn { padding: 0.8rem 1.5rem; font-size: 0.9rem; }
+            .level { padding: 1rem; }
+            .nav-btn { width: 40px; height: 40px; font-size: 1rem; bottom: 80px; top: auto; transform: none; }
+            .nav-prev { left: 15px; } .nav-next { right: 15px; }
+            .memory-wrapper { max-width: 340px; }
+            .memory-grid { gap: 6px; }
+            .front-face { font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="hud">
+        <div class="hud-left">
+            <a href="https://satqm.github.io/Pro/" class="app-icon-badge">
+                <div class="app-logo-small">CA</div>
+                <div><div style="font-weight: 700; font-size: 0.8rem;">Pro Tracker</div></div>
+            </a>
+        </div>
+        <div class="hud-right">
+            <a href="https://youtube.com/@__satyamkumar" target="_blank" style="text-decoration: none;">
+                <div style="background: white; padding: 6px 12px; border-radius: 50px; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                    <i class="fab fa-youtube" style="color: red;"></i>
+                    <span style="font-weight: 600; font-size: 0.8rem; color: var(--text-dark);">Sub</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="nav-btn nav-prev" id="prevBtn" onclick="scrollToLevel(-1)"><i class="fas fa-chevron-left"></i></div>
+    <div class="nav-btn nav-next" id="nextBtn" onclick="scrollToLevel(1)"><i class="fas fa-chevron-right"></i></div>
+
+    <div class="progress-bar-container"><div class="progress-fill" id="progressFill"></div></div>
+
+    <div class="game-world" id="world">
+
+        <section class="level active" id="lvl-1">
+            <div class="level-content">
+                <div style="margin-bottom: 1rem; padding: 0.4rem 1rem; background: #DBEAFE; color: #1E40AF; border-radius: 50px; font-weight: 600; font-size: 0.8rem;">
+                    🚀 Version 2.0
+                </div>
+                <h1>The Game of <br><span style="color: var(--primary);">Discipline.</span></h1>
+                <p>CA Final isn't just an exam. It's a strategy game.</p>
+                
+                <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <button onclick="scrollToLevel(1)" class="btn btn-primary">
+                        <i class="fas fa-gamepad"></i> Start Challenge
+                    </button>
+                    <button onclick="scrollToLevel(3)" class="btn" style="background: white; border: 1px solid #cbd5e1;">
+                        Features
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section class="level dark-mode" id="lvl-2">
+            <div class="level-content">
+                <h2 style="text-shadow: 0 0 15px rgba(0, 240, 255, 0.3);">Neural Check</h2>
+                <p class="text-muted" style="margin-bottom: 1.5rem; font-size: 0.9rem;">Verify your focus before studying.</p>
+
+                <div class="memory-wrapper">
+                    <div class="mem-stats">
+                        <span>Moves: <span id="mem-moves" class="mem-stat-val">0</span></span>
+                        <span>Pairs: <span id="mem-pairs" class="mem-stat-val">0/8</span></span>
+                        <span>Time: <span id="mem-timer" class="mem-stat-val">0s</span></span>
+                    </div>
+
+                    <div class="memory-grid" id="memory-board"></div>
+                    
+                    <div class="game-rules">
+                        <i class="fas fa-info-circle"></i> <strong>Rules:</strong> Find matching pairs. Time & moves determine your Focus IQ.
+                    </div>
+
+                    <div class="mem-overlay" id="mem-overlay">
+                        <h2 style="font-size: 1.8rem; margin-bottom: 0.5rem;">Synced!</h2>
+                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🧠</div>
+                        <p id="mem-rating" style="margin-bottom: 1.5rem; color: #cbd5e1;">Calculating...</p>
+                        <button class="mem-btn" onclick="initMemoryGame()" style="background: var(--mem-accent); border:none; padding:10px 20px; border-radius:8px; font-weight:bold;">Play Again</button>
+                        <button onclick="scrollToLevel(1)" style="background:transparent; color:#fff; border:1px solid #fff; padding:8px 20px; border-radius:8px; margin-top:10px;">Next Level</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="level" id="lvl-3">
+            <div class="level-content">
+                <h2>Why You're Losing XP</h2>
+                <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
+                    <div class="card" style="width: 280px;">
+                        <i class="fas fa-file-excel" style="font-size: 2rem; color: #10B981; margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size:1.2rem;">Excel is Boring</h3>
+                        <p style="font-size: 0.9rem; margin: 0;">Manual entry drains your mana.</p>
+                    </div>
+                    <div class="card" style="width: 280px;">
+                        <i class="fas fa-bell-slash" style="font-size: 2rem; color: #EF4444; margin-bottom: 0.5rem;"></i>
+                        <h3 style="font-size:1.2rem;">Apps Distract</h3>
+                        <p style="font-size: 0.9rem; margin: 0;">Generic trackers have too many ads.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="level" id="lvl-4">
+            <div class="level-content">
+                <h2>Dodge Distractions</h2>
+                <p>Tap to Jump over Instagram & Sleep.</p>
+                
+                <div id="mini-game-container">
+                    <div id="game-message" style="position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center; z-index:10;">
+                        <button class="btn btn-primary" onclick="startDinoGame()">▶ Play</button>
+                    </div>
+                    <div id="dino" class="dino"><i class="fas fa-book-open"></i></div>
+                    <div id="obstacle" class="obstacle">📱</div>
+                </div>
+                <div style="margin-top: 1rem; font-family: 'JetBrains Mono', monospace;">Score: <span id="dino-score">0</span></div>
+            </div>
+        </section>
+
+        <section class="level" id="lvl-5">
+            <div class="level-content">
+                <h1>Level Up?</h1>
+                <p>No Login. No Ads. Just Discipline.</p>
+                <a href="https://satqm.github.io/Pro/" class="btn btn-primary" style="padding: 1.2rem 3rem; font-size: 1.2rem;">
+                    Open Tracker App
+                </a>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        // --- 1. NAVIGATION & SCROLL LOGIC ---
+        const world = document.querySelector('.game-world');
+        const levels = document.querySelectorAll('.level');
+        const progressFill = document.getElementById('progressFill');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        let currentLevelIndex = 0;
+
+        // Manual Scroll Function for Buttons
+        function scrollToLevel(direction) {
+            let newIndex = currentLevelIndex + direction;
+            if (newIndex < 0) newIndex = 0;
+            if (newIndex >= levels.length) newIndex = levels.length - 1;
+            
+            levels[newIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Observer to update active state & progress bar
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    // Remove active from all, add to current
+                    levels.forEach(l => l.classList.remove('active'));
+                    entry.target.classList.add('active');
+                    
+                    // Update Index
+                    currentLevelIndex = Array.from(levels).indexOf(entry.target);
+                    
+                    // Update UI
+                    const progress = ((currentLevelIndex + 1) / levels.length) * 100;
+                    progressFill.style.width = `${progress}%`;
+                    
+                    // Show/Hide Arrows
+                    prevBtn.style.display = currentLevelIndex === 0 ? 'none' : 'flex';
+                    nextBtn.style.display = currentLevelIndex === levels.length - 1 ? 'none' : 'flex';
+                }
+            });
+        }, { threshold: 0.5 }); // Trigger when 50% visible
+
+        levels.forEach(level => observer.observe(level));
+
+
+        // --- 2. MEMORY GAME LOGIC (OPTIMIZED) ---
+        const iconPool = ['🤖','🧠','🦾','💻','📡','⚛️','💾','🔋','🚀','💰','💸','📊','📈','📉','📚','🎓','✏️','⏰','⏳','💡','🦁','🐯','🐼','🦊'];
+        const grid = document.getElementById('memory-board');
+        const movesEl = document.getElementById('mem-moves');
+        const pairsEl = document.getElementById('mem-pairs');
+        const timerEl = document.getElementById('mem-timer');
+        const overlay = document.getElementById('mem-overlay');
+        const ratingEl = document.getElementById('mem-rating');
+
+        let hasFlippedCard = false;
+        let lockBoard = false;
+        let firstCard, secondCard;
+        let moves = 0, pairs = 0, time = 0, timerInterval;
+
+        function initMemoryGame() {
+            grid.innerHTML = '';
+            overlay.style.display = 'none';
+            moves = 0; pairs = 0; time = 0;
+            movesEl.innerText = '0'; pairsEl.innerText = '0/8'; timerEl.innerText = '0s';
+            clearInterval(timerInterval);
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+
+            // Setup Cards
+            const selected = iconPool.sort(() => 0.5 - Math.random()).slice(0, 8);
+            const gameIcons = [...selected, ...selected].sort(() => 0.5 - Math.random());
+
+            gameIcons.forEach(icon => {
+                const card = document.createElement('div');
+                card.classList.add('memory-card');
+                card.dataset.icon = icon;
+                card.innerHTML = `<div class="front-face">${icon}</div><div class="back-face"><i class="fas fa-bullseye"></i></div>`;
+                card.addEventListener('click', flipCard);
+                // Touch support
+                card.addEventListener('touchstart', function(e) { e.preventDefault(); flipCard.call(this); }, {passive: false});
+                grid.appendChild(card);
+            });
+
+            timerInterval = setInterval(() => { time++; timerEl.innerText = time + 's'; }, 1000);
+        }
+
+        function flipCard() {
+            if (lockBoard || this === firstCard) return;
+
+            this.classList.add('flip');
+
+            if (!hasFlippedCard) {
+                hasFlippedCard = true;
+                firstCard = this;
+                return;
+            }
+
+            secondCard = this;
+            moves++;
+            movesEl.innerText = moves;
+            checkForMatch();
+        }
+
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.icon === secondCard.dataset.icon;
+            isMatch ? disableCards() : unflipCards();
+        }
+
+        function disableCards() {
+            firstCard.classList.add('matched');
+            secondCard.classList.add('matched');
+            resetBoard();
+            pairs++;
+            pairsEl.innerText = `${pairs}/8`;
+            if (pairs === 8) endGame();
+        }
+
+        function unflipCards() {
+            lockBoard = true;
+            // FIXED: Reduced delay to 600ms for snappier feel
+            setTimeout(() => {
+                firstCard.classList.remove('flip');
+                secondCard.classList.remove('flip');
+                resetBoard();
+            }, 600); 
+        }
+
+        function resetBoard() {
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+        }
+
+        function endGame() {
+            clearInterval(timerInterval);
+            let score = 100 - (time/2) - moves;
+            let rating = score > 60 ? "Photographic Memory 🧠" : score > 40 ? "Sharp Focus 🔥" : "Good Effort 👍";
+            ratingEl.innerHTML = `Time: ${time}s | Moves: ${moves}<br><span style="color:white; font-size:1.1rem;">${rating}</span>`;
+            overlay.style.display = 'flex';
+        }
+
+        initMemoryGame();
+
+
+        // --- 3. DINO GAME LOGIC (LAG FIXED) ---
+        let dinoRunning = false;
+        let dinoScore = 0;
+        let obstaclePos = 500; // Start off screen
+        let speed = 5;
+        let animationId;
+        const dino = document.getElementById('dino');
+        const obstacle = document.getElementById('obstacle');
+        const msg = document.getElementById('game-message');
+        const dScore = document.getElementById('dino-score');
+        const gameContainer = document.getElementById('mini-game-container');
+
+        function startDinoGame() {
+            if(dinoRunning) return;
+            dinoRunning = true;
+            dinoScore = 0;
+            obstaclePos = 500;
+            speed = 5;
+            msg.style.display = 'none';
+            dScore.innerText = '0';
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop() {
+            if(!dinoRunning) return;
+
+            // Move Obstacle
+            obstaclePos -= speed;
+            if(obstaclePos < -30) {
+                obstaclePos = 500;
+                dinoScore++;
+                dScore.innerText = dinoScore;
+                speed += 0.2; // Increase speed
+            }
+            obstacle.style.left = obstaclePos + 'px';
+
+            // Collision Detection
+            const dinoBottom = parseInt(window.getComputedStyle(dino).getPropertyValue('bottom'));
+            // Simple hitbox: Obstacle is between 40px and 70px from left, and dino is low
+            if(obstaclePos < 70 && obstaclePos > 40 && dinoBottom < 30) {
+                gameOver();
+                return; // Stop loop
+            }
+
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function gameOver() {
+            dinoRunning = false;
+            cancelAnimationFrame(animationId);
+            msg.style.display = 'block';
+            msg.innerHTML = `<h3 style="color:#EF4444">Hit!</h3><p>Score: ${dinoScore}</p><button class="btn btn-primary" onclick="startDinoGame()">Retry</button>`;
+        }
+
+        // Jump Control
+        gameContainer.addEventListener('mousedown', jump);
+        gameContainer.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); });
+
+        function jump() {
+            if(!dinoRunning) return;
+            if(!dino.classList.contains("jump-anim")) {
+                dino.classList.add("jump-anim");
+                setTimeout(() => dino.classList.remove("jump-anim"), 500);
+            }
+        }
+    </script>
+</body>
+</html>
+
